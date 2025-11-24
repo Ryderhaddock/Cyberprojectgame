@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSINT Auditor Canvas Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Base styles using Tailwind */
+        body {
+            /* IMPORTANT: Add tabindex to ensure the body can receive focus for key presses */
+            tabindex: 0; 
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0fdf4; 
+        }
+
+        /* --- Canvas Container --- */
+        #game-container {
+            width: 90%;
+            max-width: 800px;
+            height: 600px;
+            border: 6px solid #1e3a8a; 
+            background-color: #d1fae5; 
+            position: relative;
+            overflow: hidden;
+            border-radius: 12px 12px 0 0;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+        
+        #game-canvas {
+            display: block;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            #game-container {
+                height: 80vh;
+                width: 95%;
+            }
+        }
+        
+        /* --- Dialogue Box Styling (RPG Vibe) --- */
+        #dialogue-box {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            min-height: 150px;
+            background-color: #fff;
+            border-top: 5px solid #1e3a8a;
+            padding: 15px;
+            box-sizing: border-box;
+            font-size: 1.1em;
+            color: #1f2937;
+        }
+        
+        #dialogue-text {
+            margin-bottom: 15px;
+            font-weight: 500;
+            min-height: 40px;
+        }
+
+        #choice-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        #choice-buttons button {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #3b82f6; 
+            color: white;
+            border: 2px solid #1e3a8a;
+            border-radius: 6px;
+            font-weight: bold;
+            transition: background-color 0.2s, transform 0.1s;
+            box-shadow: 0 4px #1e3a8a;
+        }
+
+        #choice-buttons button:hover {
+            background-color: #2563eb;
+            transform: translateY(1px);
+            box-shadow: 0 3px #1e3a8a;
+        }
+        
+        #choice-buttons button:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 #1e3a8a;
+        }
+        
+        #audit-button {
+            background-color: #ef4444;
+            box-shadow: 0 4px #b91c1c;
+        }
+        
+        /* Dialogue box styling for the speaker name */
+        .speaker-name-tag {
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-right: 10px;
+            color: white; 
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            display: inline-block;
+        }
+
+        /* --- Control Panel & Tracker --- */
+        #control-panel {
+            width: 90%;
+            max-width: 800px;
+            background-color: #e0f2fe; 
+            border: 6px solid #1e3a8a;
+            border-top: none;
+            border-radius: 0 0 12px 12px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        #tracker {
+            background: #fff;
+            padding: 8px 15px;
+            border-radius: 8px;
+            border: 2px solid #1e3a8a;
+            font-size: 0.85em;
+            text-align: left;
+            flex-grow: 1;
+            margin-right: 15px;
+        }
+        #tracker p { margin: 2px 0; font-weight: 500; }
+        .found { color: #10b981; }
+        .missing { color: #1f2937; } /* Default text color */
+        
+        /* Tracker status colors */
+        .discovered { color: #f59e0b; font-weight: bold; } /* Orange for discovered fact name */
+        .collected { color: #10b981; font-weight: bold; } /* Green for collected fact value */
+
+        #password-box {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            width: 35%;
+            min-width: 200px;
+        }
+        #password-input {
+            padding: 8px;
+            border: 2px solid #1e3a8a;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+        
+        /* --- Modal/Pop-up Styling --- */
+        #info-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        #modal-content {
+            background-color: #fff;
+            padding: 30px;
+            border: 5px solid #1e3a8a;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 450px;
+            text-align: center;
+            position: relative; /* Needed for X button */
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+        }
+        
+        #modal-close-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #1e3a8a;
+            font-weight: bold;
+        }
+        .hidden { display: none !important; }
+
+        /* --- Title Screen --- */
+        #title-screen, #briefing-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0f172a; /* Slate 900 */
+            color: #e2e8f0; /* Slate 200 */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            text-align: center;
+        }
+        
+        #title-screen h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+            color: #3b82f6; /* Blue 500 */
+            text-shadow: 2px 2px #1e3a8a;
+        }
+        
+        #title-screen button, #briefing-screen button {
+            padding: 15px 30px;
+            font-size: 1.2em;
+            cursor: pointer;
+            /* Changed color from green to blue for title screen button */
+            background-color: #3b82f6; 
+            color: white;
+            border: 3px solid #1e3a8a;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: background-color 0.2s, transform 0.1s;
+            box-shadow: 0 5px #1e3a8a;
+        }
+        
+        #title-screen button:hover, #briefing-screen button:hover {
+            background-color: #2563eb;
+            transform: translateY(1px);
+            box-shadow: 0 4px #1e3a8a;
+        }
+        
+        #briefing-content {
+            background-color: #1e293b; /* Slate 800 */
+            padding: 40px;
+            border-radius: 12px;
+            border: 4px solid #3b82f6;
+            max-width: 500px;
+        }
+        #briefing-content h2 {
+            font-size: 2em;
+            margin-bottom: 15px;
+            color: #f59e0b; /* Orange 500 */
+        }
+        #briefing-content p {
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+        
+        /* Game Over Specific Style */
+        #game-over-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7); /* Dark semi-transparent background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 3000; /* Ensure it's above everything else */
+        }
+        #game-over-modal #modal-content {
+            border-color: #ef4444; /* Red border for failure */
+        }
+        #game-over-modal #modal-title {
+            color: #ef4444;
+        }
+    </style>
+</head>
+<body tabindex="0">
+
+    <!-- Title Screen --><div id="title-screen">
+        <h1>OSINT Auditor: The Park Infiltration</h1>
+        <p class="mb-8">Gather public information to demonstrate a critical security vulnerability.</p>
+        <button onclick="showBriefing()">START AUDIT</button>
+    </div>
+
+    <!-- Briefing Screen (Hidden initially) --><div id="briefing-screen" class="hidden">
+        <div id="briefing-content">
+            <h2 class="text-3xl text-red-400 mb-6">Your mission if you choose to accept it...</h2>
+            <h2>MISSION BRIEFING</h2>
+            <p>Your target is the **Orange** circle, who represents the CEO. Your goal is to gather three pieces of public information that could be used as security answers or components of a weak master password.</p>
+            <p class="font-bold text-xl text-yellow-300">Goal: Find three key password components.</p>
+            <p class="text-sm italic mt-5">Use WASD or Arrow Keys to move. Interact by touching the circles.</p>
+            <button onclick="startGame()">BEGIN</button>
+        </div>
+    </div>
+
+    <div id="game-container">
+        <!-- Canvas for the game world --><canvas id="game-canvas"></canvas>
+
+        <!-- Dialogue Box (RPG Vibe) - Overlaying the bottom of the container --><div id="dialogue-box">
+            <p id="dialogue-text">
+                <span id="speaker-name" class="speaker-name-tag" style="background-color: #94a3b8; display: none;">SPEAKER</span>
+                <!-- Content is initialized in JS now --><span id="dialogue-content"></span>
+            </p>
+            <div id="choice-buttons">
+                <!-- Audit button appears here when complete --></div>
+        </div>
+    </div>
+    
+    <!-- Control Panel Below Game Screen --><div id="control-panel">
+        <div id="tracker">
+            <p id="tracker-title">INFORMATION COLLECTED:</p>
+            <!-- Start with generic component names --><p id="track-pet-name" class="missing">1.) Password Component</p>
+            <p id="track-founding-year" class="missing">2.) Password Component</p>
+            <p id="track-mascot" class="missing">3.) Password Component</p>
+        </div>
+
+        <div id="password-box">
+            <label for="password-input" class="text-sm font-bold text-gray-700">PASSWORD GUESS (Example: Sparky2008)</label>
+            <input type="text" id="password-input" placeholder="Enter your guess here..." onkeydown="if (event.key === 'Enter') checkPassword()">
+            <button onclick="checkPassword()">Submit Guess</button>
+        </div>
+    </div>
+
+    <!-- Educational Pop-up Modal --><div id="info-modal" class="hidden">
+        <div id="modal-content">
+            <!-- Close button added here --><button id="modal-close-button" onclick="continueGame()">×</button>
+            <h2 id="modal-title"></h2>
+            <p id="modal-concept"></p>
+            <div id="final-report" class="hidden">
+                <h3>Vulnerability Report</h3>
+                <p>The following publicly gathered facts could be combined into weak passwords or security answers:</p>
+                <ul id="report-list"></ul>
+            </div>
+            <p id="modal-explanation"></p>
+            <button onclick="continueGame()">Acknowledge & Continue</button>
+        </div>
+    </div>
+    
+    <!-- Game Over Modal (Hidden initially) --><div id="game-over-modal" class="hidden">
+        <div id="modal-content">
+            <h2 id="modal-title">AUDIT FAILED: GAME OVER</h2>
+            <p id="modal-concept">You were caught by security and your audit was terminated.</p>
+            <p id="modal-explanation">Security awareness is key in OSINT. Sometimes the best action is to walk away. Refresh the page to start a new audit.</p>
+        </div>
+    </div>
+
+    <script>
+        // --- Canvas and Context Setup ---
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const GAME_WIDTH = 800;
+        const GAME_HEIGHT = 600;
+        
+        canvas.width = GAME_WIDTH;
+        canvas.height = GAME_HEIGHT;
+        
+        // --- Game Constants and State ---
+        const FACTS_REQUIRED = 3;
+        const TARGET_PASSWORD = "Sparky2008"; 
+        
+        const INSTRUCTION_DIALOGUE = "Move around the park (W, A, S, D or Arrow Keys) and talk to the circles to gather facts for your OSINT audit.";
+        const IDLE_DIALOGUE = ""; // Blank when not talking
+        
+        const playerRadius = 17;
+        const npcRadius = 17;
+        const playerSpeed = 150; 
+        const npcWanderSpeed = 30; // Speed for NPCs
+
+        let collectedFacts = {};
+        let gameHints = {}; 
+        let gameActive = false;
+        let interactionActive = false; 
+        let canInteract = true;      
+        let isModalVisible = false;
+        
+        const INTERACTION_COOLDOWN = 1200; 
+
+        let keysPressed = {};
+        let lastTime = 0;
+        let activeNPCKey = null;
+
+        // --- DOM Elements ---
+        const titleScreen = document.getElementById('title-screen');
+        const briefingScreen = document.getElementById('briefing-screen');
+        const speakerNameEl = document.getElementById('speaker-name');
+        const dialogueContentEl = document.getElementById('dialogue-content');
+        const choiceButtons = document.getElementById('choice-buttons');
+        const infoModal = document.getElementById('info-modal');
+        const gameOverModal = document.getElementById('game-over-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalConcept = document.getElementById('modal-concept');
+        const modalExplanation = document.getElementById('modal-explanation');
+        const finalReportSection = document.getElementById('final-report');
+        const reportList = document.getElementById('report-list');
+        const passwordInput = document.getElementById('password-input');
+
+        // Tracking elements
+        const trackerElements = {
+            'pet_name': document.getElementById('track-pet-name'),
+            'founding_year': document.getElementById('track-founding-year'),
+            'mascot_name': document.getElementById('track-mascot')
+        };
+        
+        // Fact definitions for tracking display (Full information)
+        const factDefinitions = {
+            'pet_name': "CEO's Pet Name",
+            'founding_year': "Founding Year",
+            'mascot_name': "Company Mascot"
+        };
+        
+        // --- Game Object Definitions (Pixel Coordinates) ---
+
+        let player = {
+            // Player starts between the guards at the top
+            x: GAME_WIDTH / 2,
+            y: 100
+        };
+        
+        // Scenery objects now include tree crown positions and better styling
+        const scenery = [
+            { type: 'bench', color: '#854d0e', x: 160, y: 90, w: 100, h: 40 },
+            { type: 'bench', color: '#854d0e', x: 320, y: 400, w: 100, h: 40 },
+            { type: 'cooler', color: '#90caf9', borderColor: '#1e3a8a', x: 40, y: 250, w: 30, h: 60 },
+            { type: 'tree', tx: 60, ty: 450, tw: 20, th: 50, cr: 40, cc: '#38761d' },
+            { type: 'tree', tx: 730, ty: 350, tw: 20, th: 50, cr: 40, cc: '#6aa84f' },
+            { type: 'tree', tx: 300, ty: 500, tw: 20, th: 50, cr: 45, cc: '#38761d' },
+        ];
+        
+        // Function to set random initial movement for NPCs
+        const initialNPCMovement = () => ({
+            vx: (Math.random() * 2 - 1) * npcWanderSpeed,
+            vy: (Math.random() * 2 - 1) * npcWanderSpeed,
+            moveTimer: 2 + Math.random() * 3 // Change direction every 2-5 seconds
+        });
+
+        const npcsData = {
+            'Purple': { 
+                x: 80, y: 150, // Moved down slightly
+                color: '#7c3aed', 
+                dialogue: "Hello! I'm the CEO's wife. We love our dog so much we put him in everything... especially those silly security questions and passwords!", 
+                choices: [{ text: "A: Engage in small talk about the dog.", secure: true, action: 'purple_step2' }],
+                ...initialNPCMovement() // Added movement properties
+            },
+            'Orange (CEO)': { 
+                x: 550, y: 380, 
+                color: '#f59e0b', 
+                dialogue: "It's a wonderful day for a company picnic, isn't it? Very relaxing!", 
+                choices: [{ text: "A: Agree and move on.", secure: true }],
+                ...initialNPCMovement()
+            },
+            'Green': { 
+                x: 560, y: 150, 
+                color: '#10b981', 
+                dialogue: "Did you see the guy dressed as Buster the Beaver? He's the best mascot we've ever had!", 
+                choices: [{ text: "A: Jot down the mascot's name.", secure: true, info: { key: 'mascot_name', name: "Buster the Beaver" } }],
+                ...initialNPCMovement()
+            },
+            'Violet': { x: 120, y: 400, color: '#8b5cf6', dialogue: "This lemonade is too sweet, I prefer water. You?", choices: [{ text: "A: Mention you prefer the free snacks.", secure: true }], ...initialNPCMovement() },
+            'Pink': { x: 200, y: 200, color: '#f472b6', dialogue: "I’m in HR. Everyone is so relaxed today, even the CEO!", choices: [{ text: "A: Ask about a specific colleague’s whereabouts.", secure: false, risk: "Internal mapping/Phishing preparation." }, { text: "B: Discuss the good music.", secure: true }], ...initialNPCMovement() },
+            'Gray': { 
+                x: 50, y: 350, // Moved away from spawn
+                color: '#94a3b8', 
+                dialogue: "Phew, almost dropped my phone in the lake! That would have been a disaster.", 
+                choices: [{ text: "A: Ask what kind of phone they have.", secure: false, risk: "Trying to gain technical device info." }, { text: "B: Suggest they find a better spot to sit.", secure: true }],
+                ...initialNPCMovement()
+            },
+            'Magenta': { dialogue: "I think I saw the CEO head toward the cake table. I heard he loves vanilla.", x: 640, y: 280, color: '#d946ef', choices: [{ text: "A: Agree and move on.", secure: true }], ...initialNPCMovement() },
+            'Cyan': { x: 300, y: 150, color: '#06b6d4', isHint: true, dialogue: "I heard the boss uses his **company's founding year** in all his security passwords. Says it's easy to remember.", choices: [{ text: "A: Jot down the tip.", secure: true, info: { key: 'uses_year_in_password', name: "Founding Year Hint" } }], ...initialNPCMovement() },
+            'Lime': { dialogue: "I heard there's a rumor about a huge new product launch soon.", x: 700, y: 500, color: '#84cc16', choices: [{ text: "A: Ask for details.", secure: false, risk: "Trying to gain internal confidential data." }, { text: "B: Smile and walk away.", secure: true }], ...initialNPCMovement() },
+            'Amber': { dialogue: "I parked about a mile away. Worth the walk though!", x: 720, y: 180, color: '#fbbf24', choices: [{ text: "A: Nod and move on.", secure: true }], ...initialNPCMovement() },
+            
+            // Security Guards (Stationary)
+            'Blue Guard 1': { x: 350, y: 50, color: '#3b82f6', isGuard: true, dialogue: "Guard: Welcome to the company picnic. Do you work here?" },
+            'Blue Guard 2': { x: 450, y: 50, color: '#3b82f6', isGuard: true, dialogue: "Guard: Please have your company badge visible." }
+        };
+
+
+        // --- Screen Control Functions ---
+
+        function showBriefing() {
+            titleScreen.classList.add('hidden');
+            briefingScreen.classList.remove('hidden');
+        }
+
+        function startGame() {
+            briefingScreen.classList.add('hidden');
+            gameActive = true;
+            document.body.focus();
+            requestAnimationFrame(gameLoop);
+            updateTracker(); 
+            dialogueContentEl.textContent = IDLE_DIALOGUE; 
+        }
+
+        function triggerGameOver() {
+            gameActive = false;
+            interactionActive = true;
+            isModalVisible = true; // Pause game state fully
+            gameOverModal.classList.remove('hidden');
+        }
+
+        // --- Drawing Functions ---
+        
+        function drawTree(tx, ty, tw, th, cr, cc) {
+            ctx.fillStyle = '#854d0e';
+            ctx.fillRect(tx - tw / 2, ty, tw, th);
+            
+            ctx.beginPath();
+            ctx.arc(tx, ty, cr, 0, Math.PI * 2);
+            ctx.fillStyle = cc;
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+            ctx.shadowBlur = 4;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.closePath();
+        }
+
+        function drawCharacter(x, y, radius, color, borderColor = '#000') {
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+            ctx.shadowBlur = 4;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            ctx.strokeStyle = borderColor;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            ctx.closePath();
+        }
+
+        function drawScenery() {
+            const playableHeight = GAME_HEIGHT - 150;
+            
+            // 1. Draw Grass Details (Darker Patches for texture)
+            ctx.fillStyle = '#6aa84f'; // Darker Green
+            ctx.fillRect(0, 0, GAME_WIDTH / 3, playableHeight);
+            ctx.fillRect(GAME_WIDTH * 2 / 3, 0, GAME_WIDTH / 3, playableHeight);
+            ctx.fillStyle = '#d1fae5'; // Base Light Mint (Background of canvas)
+
+            // 2. Draw Central Path (Light Gray)
+            ctx.fillStyle = '#ccc';
+            ctx.fillRect(GAME_WIDTH / 3, 0, GAME_WIDTH / 3, playableHeight);
+            
+            // 3. Draw Fixed Items
+            scenery.filter(item => item.type === 'tree').forEach(tree => {
+                drawTree(tree.tx, tree.ty, tree.tw, tree.th, tree.cr, tree.cc);
+            });
+
+            // Draw Hedges (manual drawing for clean layering)
+            ctx.fillStyle = '#38a169';
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 2;
+            
+            // Vertical Hedge (Right Side)
+            ctx.beginPath();
+            ctx.roundRect(710, 70, 50, 80, 10);
+            ctx.fill();
+            ctx.stroke();
+            ctx.closePath();
+
+            // Draw other scenery (benches, cooler)
+            scenery.filter(item => item.type !== 'tree').forEach(item => {
+                ctx.fillStyle = item.color;
+                if (item.type === 'bench') {
+                    ctx.beginPath();
+                    ctx.roundRect(item.x, item.y, item.w, item.h, 5);
+                    ctx.fill();
+                    ctx.closePath();
+                } else if (item.type === 'cooler') {
+                    ctx.fillStyle = item.color;
+                    ctx.fillRect(item.x, item.y, item.w, item.h);
+                    ctx.strokeStyle = item.borderColor;
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(item.x, item.y, item.w, item.h);
+                }
+            });
+        }
+        
+        function render() {
+            ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT); // Clear canvas at the beginning of each frame
+
+            const playableHeight = GAME_HEIGHT - 150;
+
+            if (interactionActive && activeNPCKey) {
+                // DIALOGUE VIEW: Park is paused and dimmed, show portrait
+
+                // 1. Draw the scenery in the background (undimmed initially)
+                drawScenery();
+
+                // 2. Dim Overlay
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, GAME_WIDTH, playableHeight);
+                
+                // 3. Draw Portrait
+                const npc = npcsData[activeNPCKey];
+                const portraitRadius = 120; // A bit larger
+                const portraitX = GAME_WIDTH / 4; // Further left
+                
+                // --- FIX START: Character portrait moved down (25% off-screen) ---
+                const portraitY = playableHeight - portraitRadius + (portraitRadius * 0.25); 
+                // --- FIX END ---
+
+                // Draw a light frame
+                ctx.beginPath();
+                ctx.arc(portraitX, portraitY, portraitRadius + 8, 0, Math.PI * 2);
+                ctx.fillStyle = 'white';
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                ctx.shadowBlur = 10;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.closePath();
+
+                // Draw the character portrait
+                drawCharacter(portraitX, portraitY, portraitRadius, npc.color);
+
+            } else {
+                // STANDARD GAME VIEW: Park is live, draw characters normally
+
+                drawScenery(); // Draw scenery first
+
+                for (const key in npcsData) {
+                    const npc = npcsData[key];
+                    drawCharacter(npc.x, npc.y, npcRadius, npc.color);
+                }
+
+                // Draw Player
+                drawCharacter(player.x, player.y, playerRadius, '#ef4444', '#b91c1c');
+            }
+        }
+
+
+        // --- Game Logic ---
+        
+        function getScenario(npcKey) {
+            // Define static scenarios based on initial data
+            const staticScenarios = {
+                'Purple': { dialogue: npcsData['Purple'].dialogue, choices: npcsData['Purple'].choices },
+                'Orange (CEO)': { dialogue: npcsData['Orange (CEO)'].dialogue, choices: npcsData['Orange (CEO)'].choices },
+                'Green': { dialogue: npcsData['Green'].dialogue, choices: npcsData['Green'].choices },
+                'Violet': { dialogue: npcsData['Violet'].dialogue, choices: npcsData['Violet'].choices },
+                'Pink': { dialogue: npcsData['Pink'].dialogue, choices: npcsData['Pink'].choices },
+                'Gray': { dialogue: npcsData['Gray'].dialogue, choices: npcsData['Gray'].choices },
+                'Magenta': { dialogue: npcsData['Magenta'].dialogue, choices: npcsData['Magenta'].choices },
+                'Lime': { dialogue: npcsData['Lime'].dialogue, choices: npcsData['Lime'].choices },
+                'Amber': { dialogue: npcsData['Amber'].dialogue, choices: npcsData['Amber'].choices },
+                'Cyan': { isHint: true, dialogue: npcsData['Cyan'].dialogue, choices: npcsData['Cyan'].choices },
+                'Blue Guard 1': { isGuard: true, dialogue: npcsData['Blue Guard 1'].dialogue },
+                'Blue Guard 2': { isGuard: true, dialogue: npcsData['Blue Guard 2'].dialogue },
+            };
+            
+            let scenario = staticScenarios[npcKey];
+
+            // --- Special Guards Logic ---
+            if (npcKey.includes('Guard')) {
+                return { 
+                    dialogue: scenario.dialogue, 
+                    isGuard: true,
+                    choices: [
+                        { text: "A: Yes, I work here.", secure: true, action: 'pass_security' },
+                        { text: "B: No, I don't work here.", secure: false, action: 'fail_security' }
+                    ]
+                };
+            }
+
+            // --- Special Purple Logic (Two-step dialogue) ---
+            if (npcKey === 'Purple' && !collectedFacts['pet_name']) {
+                // If the player is on step 2 of Purple's dialogue
+                if (gameHints['purple_step2']) {
+                    scenario = {
+                        dialogue: "Purple: Oh, his name is **Sparky**! He's just the best boy.",
+                        choices: [
+                            { text: "A: Log the name.", secure: true, info: { key: 'pet_name', name: "Sparky" } }
+                        ]
+                    };
+                }
+            }
+
+
+            // --- Special CEO Logic (Conditional Dialogue) ---
+            if (npcKey === 'Orange (CEO)') {
+                if (collectedFacts['founding_year']) {
+                    // Fact collected: return a final generic/safe dialogue
+                    scenario = { dialogue: "The CEO smiles genuinely. 'It's a great event, and our future looks bright.'", choices: [{ text: "Acknowledge and Move On", secure: true }] };
+                } else if (gameHints['uses_year_in_password']) {
+                    // Hint is found, unlock the crucial question
+                    scenario = {
+                        dialogue: "The CEO smiles, 'Yes, it's nice to relax. Did you need something specific?'",
+                        choices: [
+                            // A: The specific question reveals the fact
+                            { text: "A: Ask casually: 'When did the company start?'", secure: true, info: { key: 'founding_year', name: "2008" } },
+                            // B: The generic question is neutral and DOES NOT reveal the fact
+                            { text: "B: Ask about the picnic food.", secure: true }
+                        ]
+                    };
+                } else {
+                    // Initial generic dialogue (default)
+                    scenario = staticScenarios[npcKey];
+                }
+            }
+
+            return scenario;
+        }
+
+        function checkPassword() {
+            const guess = passwordInput.value.trim();
+            const allFactsCollected = Object.keys(collectedFacts).length === FACTS_REQUIRED;
+            
+            if (!allFactsCollected) {
+                modalTitle.textContent = "ATTENTION: Incomplete Information";
+                modalConcept.textContent = "You must collect all 3 key facts before guessing the password.";
+                modalExplanation.textContent = "The strength of this social engineering attempt relies on aggregating multiple facts. Go talk to more people!";
+                finalReportSection.classList.add('hidden');
+                infoModal.classList.remove('hidden');
+                isModalVisible = true;
+                return;
+            }
+
+            if (guess === TARGET_PASSWORD) {
+                modalTitle.textContent = "CRITICAL VULNERABILITY: Password Guessed!";
+                modalConcept.textContent = `Vulnerability Demonstrated: ${guess}`;
+                modalExplanation.textContent = "You successfully guessed the password by combining public, non-sensitive information. This proves the company has weak password/security question policies, making them highly vulnerable to OSINT attacks. Refresh the page to start a new audit!";
+                gameActive = false;
+            } else {
+                modalTitle.textContent = "GUESS FAILED: Incorrect Password";
+                modalConcept.textContent = "Incorrect guess. Try combining your facts differently!";
+                modalExplanation.textContent = `You collected: ${collectedFacts['pet_name']?.name || 'Pet Name'}, ${collectedFacts['founding_year']?.name || 'Founding Year'}, ${collectedFacts['mascot_name']?.name || 'Mascot Name'}. (Hint: It's the Pet Name + Year, capitalized and no space)`;
+            }
+            triggerFinalReport(true);
+        }
+
+        function updateTracker() {
+            let factsCount = 0;
+            let index = 1;
+
+            // Map keys to their element and the generic/specific names
+            const factMapping = [
+                { key: 'pet_name', element: trackerElements['pet_name'], name: "CEO's Pet Name" },
+                { key: 'founding_year', element: trackerElements['founding_year'], name: "Founding Year" },
+                { key: 'mascot_name', element: trackerElements['mascot_name'], name: "Company Mascot" },
+            ];
+
+            factMapping.forEach(mapping => {
+                const { key, element, name } = mapping;
+                
+                element.classList.remove('discovered', 'collected', 'missing');
+                
+                if (collectedFacts[key]) {
+                    element.classList.add('collected');
+                    const factValue = collectedFacts[key].name; 
+                    element.textContent = `${index}.) ${name}: ${factValue}`;
+                    factsCount++;
+                } else if (gameHints['uses_year_in_password'] && key === 'founding_year') {
+                    // Specific hint found for Founding Year
+                    element.classList.add('discovered');
+                    element.textContent = `2.) Founding Year`; 
+                }
+                else {
+                    // Fact is missing, show the generic goal 
+                    element.classList.add('missing');
+                    element.textContent = `${index}.) Password Component`;
+                }
+                index++;
+            });
+            
+            if (factsCount === FACTS_REQUIRED && !document.getElementById('audit-button')) {
+                const auditButton = document.createElement('button');
+                auditButton.id = 'audit-button';
+                auditButton.textContent = 'All Facts Collected! Try the Password Slot Below.';
+                auditButton.onclick = () => dialogueContentEl.textContent = "All facts collected. Enter your combined password guess in the panel below!";
+                choiceButtons.appendChild(auditButton);
+                dialogueContentEl.textContent = "You have collected all three key facts. The Audit is complete, now try to guess the password!";
+            }
+        }
+
+        function triggerFinalReport(isPasswordAttempt = false) {
+            if (!isPasswordAttempt) {
+                interactionActive = true; 
+                choiceButtons.style.display = 'none';
+                infoModal.classList.remove('hidden'); 
+                isModalVisible = true;
+            }
+            
+            reportList.innerHTML = '';
+            for (const key in collectedFacts) {
+                const li = document.createElement('li');
+                li.textContent = `- ${factDefinitions[key]}: ${collectedFacts[key].name}`;
+                reportList.appendChild(li);
+            }
+            
+            finalReportSection.classList.add('hidden');
+        }
+        
+        // Handles multi-step dialogue for Purple
+        function handlePurpleStep2() {
+            gameHints['purple_step2'] = true;
+            const scenario = getScenario('Purple'); // Get the new scenario (step 2)
+            loadScenario(scenario, 'Purple'); 
+        }
+
+        function loadScenario(scenario, npcKey) {
+            speakerNameEl.textContent = npcKey;
+            speakerNameEl.style.backgroundColor = npcsData[npcKey].color; 
+            speakerNameEl.style.display = 'inline-block';
+            
+            dialogueContentEl.innerHTML = scenario.dialogue; 
+            choiceButtons.innerHTML = ''; 
+
+            const npcData = npcsData[npcKey];
+            
+            // 1. Check if the scenario is a Guard interaction. If so, skip the fact check logic.
+            if (!scenario.isGuard) {
+                // 2. Safely check for fact key existence using optional chaining.
+                const factKey = npcData.choices[0]?.info?.key;
+                const isFactCollected = collectedFacts[factKey] || (npcKey === 'Orange (CEO)' && collectedFacts['founding_year']);
+                
+                if (isFactCollected) {
+                    dialogueContentEl.textContent = scenario.dialogue;
+                    const button = document.createElement('button');
+                    button.textContent = "Acknowledge and Move On";
+                    button.onclick = continueGame;
+                    choiceButtons.appendChild(button);
+                    return;
+                }
+            }
+
+
+            scenario.choices.forEach(choice => {
+                const button = document.createElement('button');
+                button.textContent = choice.text;
+                
+                if (scenario.isGuard) {
+                    button.onclick = () => handleSecurityCheck(choice.action);
+                } else if (choice.action === 'purple_step2') {
+                    button.onclick = handlePurpleStep2;
+                } else {
+                    button.onclick = () => handleChoice(choice, scenario);
+                }
+                
+                choiceButtons.appendChild(button);
+            });
+        }
+        
+        function handleSecurityCheck(action) {
+            if (action === 'fail_security') {
+                triggerGameOver();
+            } else {
+                continueGame();
+            }
+        }
+
+        function handleChoice(choice, scenario) {
+            choiceButtons.style.display = 'none'; 
+            
+            const infoToCollect = choice.info;
+            
+            if (choice.secure && infoToCollect) {
+                if (scenario.isHint) {
+                    gameHints[infoToCollect.key] = true;
+                    modalTitle.textContent = "💡 HINT DISCOVERED! 💡";
+                    modalConcept.textContent = `Hint Recorded: CEO uses founding year in password.`;
+                    modalExplanation.textContent = "This new piece of intelligence might unlock a deeper conversation with the CEO or lead to a new deduction.";
+                } else {
+                    const factKey = infoToCollect.key;
+                    collectedFacts[factKey] = infoToCollect;
+                    modalTitle.textContent = "⭐ DATA COLLECTED! ⭐";
+                    modalConcept.textContent = `${factDefinitions[factKey]} Recorded: ${infoToCollect.name}`;
+                    modalExplanation.textContent = "This piece of public information is now aggregated in your audit report. Collect the remaining facts to complete the vulnerability demonstration.";
+                }
+            } 
+            else if (choice.secure) {
+                modalTitle.textContent = "Neutral Interaction";
+                modalConcept.textContent = "You kept the conversation subtle.";
+                modalExplanation.textContent = "No useful data was gathered, but you avoided arousing suspicion. Keep searching for key facts.";
+            }
+            else if (!choice.secure) {
+                modalTitle.textContent = "RISK ALERT: Too Probing";
+                modalConcept.textContent = "Your question could draw suspicion from alert employees.";
+                modalExplanation.textContent = `While you didn't get a key fact, your direct question could reveal your intent. Focus on subtle information gathering. Risk: ${choice.risk}`;
+            }
+
+            finalReportSection.classList.add('hidden');
+            infoModal.classList.remove('hidden');
+            isModalVisible = true;
+            
+            updateTracker();
+        }
+
+        function continueGame() {
+            infoModal.classList.add('hidden');
+            isModalVisible = false; 
+            
+            choiceButtons.innerHTML = ''; 
+            choiceButtons.style.display = 'block';
+            speakerNameEl.style.display = 'none';
+            activeNPCKey = null;
+
+            if (document.getElementById('audit-button')) {
+                dialogueContentEl.textContent = "All facts collected. Enter your combined password guess in the panel below!";
+            } else {
+                dialogueContentEl.textContent = IDLE_DIALOGUE;
+            }
+            
+            interactionActive = false;
+            canInteract = false;      
+            
+            setTimeout(() => {
+                canInteract = true;
+                if (Object.keys(keysPressed).length > 0) {
+                     updatePlayerPosition(0.01); 
+                }
+            }, INTERACTION_COOLDOWN);
+        }
+
+        // --- NPC Movement Update ---
+        function updateNPCs(deltaTime) {
+            // FIX: If interaction is active (dialogue is open), NPCs should stop moving.
+            if (interactionActive) return; 
+
+            const playableHeight = GAME_HEIGHT - 150; 
+            
+            for (const key in npcsData) {
+                const npc = npcsData[key];
+                
+                // Only move non-guard NPCs
+                if (npc.isGuard) continue;
+
+                // 1. Update position
+                let newX = npc.x + npc.vx * deltaTime;
+                let newY = npc.y + npc.vy * deltaTime;
+                
+                let changedDirection = false;
+
+                // 2. Boundary Check and Bounce
+                if (newX < npcRadius || newX > GAME_WIDTH - npcRadius) {
+                    npc.vx *= -1; // Reverse X direction
+                    newX = Math.max(npcRadius, Math.min(GAME_WIDTH - npcRadius, newX));
+                    changedDirection = true;
+                }
+                if (newY < npcRadius || newY > playableHeight - npcRadius) {
+                    npc.vy *= -1; // Reverse Y direction
+                    newY = Math.max(npcRadius, Math.min(playableHeight - npcRadius, newY));
+                    changedDirection = true;
+                }
+
+                npc.x = newX;
+                npc.y = newY;
+                
+                // 3. Random Direction Change based on timer
+                npc.moveTimer -= deltaTime;
+                if (npc.moveTimer <= 0 || changedDirection) {
+                    npc.vx = (Math.random() * 2 - 1) * npcWanderSpeed;
+                    npc.vy = (Math.random() * 2 - 1) * npcWanderSpeed;
+                    npc.moveTimer = 2 + Math.random() * 3; // Reset timer
+                }
+            }
+        }
+
+
+        // --- Movement & Collision Functions ---
+
+        document.addEventListener('keydown', (e) => {
+            if (!gameActive || isModalVisible) return;
+            if (interactionActive) return; 
+
+            const key = e.key.toLowerCase();
+            if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(key)) {
+                keysPressed[key] = true;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (!gameActive || isModalVisible) return;
+            if (interactionActive) return;
+
+            const key = e.key.toLowerCase();
+            delete keysPressed[key];
+        });
+
+        function updatePlayerPosition(deltaTime) {
+            if (!gameActive || interactionActive || isModalVisible) return;
+
+            let dx = 0;
+            let dy = 0;
+
+            if (keysPressed['arrowup'] || keysPressed['w']) dy -= 1;
+            if (keysPressed['arrowdown'] || keysPressed['s']) dy += 1;
+            if (keysPressed['arrowleft'] || keysPressed['a']) dx -= 1;
+            if (keysPressed['arrowright'] || keysPressed['d']) dx += 1;
+
+            if (dx === 0 && dy === 0) return;
+
+            if (dx !== 0 && dy !== 0) {
+                const diagonalFactor = 0.707;
+                dx *= diagonalFactor;
+                dy *= diagonalFactor;
+            }
+
+            const moveAmount = playerSpeed * deltaTime; 
+            
+            let newX = player.x + dx * moveAmount;
+            let newY = player.y + dy * moveAmount;
+
+            const playableHeight = GAME_HEIGHT - 150; 
+            
+            newX = Math.max(playerRadius, Math.min(GAME_WIDTH - playerRadius, newX));
+            newY = Math.max(playerRadius, Math.min(playableHeight - playerRadius, newY));
+
+            player.x = newX;
+            player.y = newY;
+
+            checkCollisions();
+        }
+
+        function checkCollisions() {
+            if (!gameActive || interactionActive || !canInteract || isModalVisible) return; 
+
+            for (const key in npcsData) {
+                const npc = npcsData[key];
+                
+                const distanceX = player.x - npc.x;
+                const distanceY = player.y - npc.y;
+                const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+                
+                const collisionThreshold = playerRadius + npcRadius + 5; 
+                
+                if (distance < collisionThreshold) {
+                    startInteraction(key);
+                    return; 
+                }
+            }
+        }
+        
+        function startInteraction(npcKey) {
+            keysPressed = {}; 
+            
+            interactionActive = true; 
+            activeNPCKey = npcKey;
+            const scenario = getScenario(npcKey);
+            if (scenario) {
+                loadScenario(scenario, npcKey); 
+            }
+        }
+        
+        // --- Main Game Loop ---
+        function gameLoop(currentTime) {
+            if (lastTime === 0) lastTime = currentTime;
+            const deltaTime = (currentTime - lastTime) / 1000; 
+            
+            if (gameActive) {
+                updatePlayerPosition(deltaTime); 
+                updateNPCs(deltaTime); 
+                render();
+            }
+            
+            lastTime = currentTime; 
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- Game Initialization ---
+        window.onload = function() {
+            const playableHeight = GAME_HEIGHT - 150; 
+            player.x = GAME_WIDTH / 2;
+            player.y = 100; // Player starts at the top between guards
+            
+            document.body.focus();
+            requestAnimationFrame(gameLoop);
+            updateTracker(); 
+        };
+    </script>
+</body>
+</html>
